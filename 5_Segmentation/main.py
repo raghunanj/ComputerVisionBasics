@@ -1,9 +1,3 @@
-# ================================================
-# Skeleton codes for HW4
-# Read the skeleton codes carefully and put all your
-# codes into main function
-# ================================================
-
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt

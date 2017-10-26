@@ -130,8 +130,6 @@ if __name__ == '__main__':
 
     img = cv2.imread(sys.argv[1], 1)
     img_marking = cv2.imread(sys.argv[2], 1)
-    #img = cv2.imread(sys.argv[1], cv2.imread_color)
-    #img_marking = cv2.imread(sys.argv[2], cv2.imread_color)
 
     # ======================================== #
     centers, color_hists, superpixels, neighbors = superpixels_histograms_neighbors(img)
@@ -153,6 +151,5 @@ if __name__ == '__main__':
 
     # ======================================== #
 
-    # read video file
     output_name = sys.argv[3] + "mask.png"
     cv2.imwrite(output_name, mask);

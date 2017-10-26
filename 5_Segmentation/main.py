@@ -150,7 +150,6 @@ if __name__ == '__main__':
     segment_mask = pixels_for_segment_selection(superpixels, np.nonzero(graph_cut))
 
     mask = np.uint8(segment_mask * 255)
-    #mask = cv2.cvtcolor(img_marking, cv2.color_bgr2gray) # dummy assignment for mask, change it to your result
 
     # ======================================== #
 

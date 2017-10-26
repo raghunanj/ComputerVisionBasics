@@ -10,34 +10,34 @@ import maxflow
 from scipy.spatial import Delaunay
 
 def help_message():
-    print("Usage: [Input_Image] [Input_Marking] [Output_Directory]")
-    print("[Input_Image]")
-    print("Path to the input image")
-    print("[Input_Marking]")
-    print("Path to the input marking")
-    print("[Output_Directory]")
-    print("Output directory")
-    print("Example usages:")
-    print(sys.argv[0] + " astronaut.png " + "astronaut_marking.png " + "./")
+   print("Usage: [Input_Image] [Input_Marking] [Output_Directory]")
+   print("[Input_Image]")
+   print("Path to the input image")
+   print("[Input_Marking]")
+   print("Path to the input marking")
+   print("[Output_Directory]")
+   print("Output directory")
+   print("Example usages:")
+   print(sys.argv[0] + " astronaut.png " + "astronaut_marking.png " + "./")
 
 # Calculate the SLIC superpixels, their histograms and neighbors
 def superpixels_histograms_neighbors(img):
     # SLIC
-    segments = slic(img, n_segments=500, compactness=20)
+    segments = slic(img, n_segments=500, compactness=18.5)
     segments_ids = np.unique(segments)
-    
+
     # centers
     centers = np.array([np.mean(np.nonzero(segments==i),axis=1) for i in segments_ids])
-    
+
     # H-S histograms for all superpixels
     hsv = cv2.cvtColor(img.astype('float32'), cv2.COLOR_BGR2HSV)
     bins = [20, 20] # H = S = 20
     ranges = [0, 360, 0, 1] # H: [0, 360], S: [0, 1]
     colors_hists = np.float32([cv2.calcHist([hsv],[0, 1], np.uint8(segments==i), bins, ranges).flatten() for i in segments_ids])
-    
+
     # neighbors via Delaunay tesselation
     tri = Delaunay(centers)
-    
+
     return (centers,colors_hists,segments,tri.vertex_neighbor_vertices)
 
 # Get superpixels IDs for FG and BG from marking
@@ -67,9 +67,9 @@ def do_graph_cut(fgbg_hists, fgbg_superpixels, norm_hists, neighbors):
     g = maxflow.Graph[float](num_nodes, num_nodes * 5)
     # Add N nodes
     nodes = g.add_nodes(num_nodes)
-    
+
     hist_comp_alg = cv2.HISTCMP_KL_DIV
-    
+
     # Smoothness term: cost between neighbors
     indptr,indices = neighbors
     for i in range(len(indptr)-1):
@@ -82,47 +82,47 @@ def do_graph_cut(fgbg_hists, fgbg_superpixels, norm_hists, neighbors):
             # histogram matching
             hn = norm_hists[n]             # histogram for neighbor
             g.add_edge(nodes[i], nodes[n], 20-cv2.compareHist(hi, hn, hist_comp_alg),
-                       20-cv2.compareHist(hn, hi, hist_comp_alg))
+                                           20-cv2.compareHist(hn, hi, hist_comp_alg))
 
-# Match term: cost to FG/BG
-for i,h in enumerate(norm_hists):
-    if i in fgbg_superpixels[0]:
-        g.add_tedge(nodes[i], 0, 1000) # FG - set high cost to BG
+    # Match term: cost to FG/BG
+    for i,h in enumerate(norm_hists):
+        if i in fgbg_superpixels[0]:
+            g.add_tedge(nodes[i], 0, 1000) # FG - set high cost to BG
         elif i in fgbg_superpixels[1]:
             g.add_tedge(nodes[i], 1000, 0) # BG - set high cost to FG
-    else:
-        g.add_tedge(nodes[i], cv2.compareHist(fgbg_hists[0], h, hist_comp_alg),
-                    cv2.compareHist(fgbg_hists[1], h, hist_comp_alg))
+        else:
+            g.add_tedge(nodes[i], cv2.compareHist(fgbg_hists[0], h, hist_comp_alg),
+                                  cv2.compareHist(fgbg_hists[1], h, hist_comp_alg))
 
-g.maxflow()
-return g.get_grid_segments(nodes)
+    g.maxflow()
+    return g.get_grid_segments(nodes)
 
 def RMSD(target, master):
     # Note: use grayscale images only
-    
+
     # Get width, height, and number of channels of the master image
     master_height, master_width = master.shape[:2]
     master_channel = len(master.shape)
-    
+
     # Get width, height, and number of channels of the target image
     target_height, target_width = target.shape[:2]
     target_channel = len(target.shape)
-    
+
     # Validate the height, width and channels of the input image
     if (master_height != target_height or master_width != target_width or master_channel != target_channel):
         return -1
     else:
-        
+
         total_diff = 0.0;
         dst = cv2.absdiff(master, target)
         dst = cv2.pow(dst, 2)
         mean = cv2.mean(dst)
         total_diff = mean[0]**(1/2.0)
-        
+
         return total_diff;
 
 if __name__ == '__main__':
-    
+   
     # validate the input arguments
     if (len(sys.argv) != 4):
         help_message()
@@ -133,37 +133,27 @@ if __name__ == '__main__':
     #img = cv2.imread(sys.argv[1], cv2.imread_color)
     #img_marking = cv2.imread(sys.argv[2], cv2.imread_color)
 
-# ======================================== #
-centers, color_hists, superpixels, neighbors = superpixels_histograms_neighbors(img)
-fg_segments, bg_segments = find_superpixels_under_marking(img_marking, superpixels)
-
-
-centers_fg, color_hists_fg, superpixels_fg, neighbors_fg = superpixels_histograms_neighbors(fg_segments)
-centers_bg, color_hists_bg, superpixels_bg, neighbors_bg = superpixels_histograms_neighbors(bg_segments)
-
-
-fg_cumulative_hist = cumulative_histogram_for_superpixels(fg_segments, color_hists)
-bg_cumulative_hist = cumulative_histogram_for_superpixels(bg_segments, color_hists)
-
-norm_hists = normalize_histograms(color_hists)
-#norm_hists_fg = normalize_histograms(color_hists_fg)
-#norm_hists_bg = normalize_histograms(color_hists_bg)
-
-graph_cut = do_graph_cut(fg_cumulative_hist, superpixels , norm_hists, neighbors)
-    
-    
-    
-    '''
-        print centers[:2]
-        print color_hists[:2]
-        print superpixels[:2]
-        '''
-    
-    mask = graph_cut
-    #mask = cv2.cvtcolor(img_marking, cv2.color_bgr2gray) # dummy assignment for mask, change it to your result
-    
     # ======================================== #
+    centers, color_hists, superpixels, neighbors = superpixels_histograms_neighbors(img)
+    fg_segments, bg_segments = find_superpixels_under_marking(img_marking, superpixels)
+
+    fg_cumulative_hist = cumulative_histogram_for_superpixels(fg_segments, color_hists)
+    bg_cumulative_hist = cumulative_histogram_for_superpixels(bg_segments, color_hists)
+
+    fgbg_hists = [fg_cumulative_hist,bg_cumulative_hist]
+    fgbg_superpixels = [fg_segments,bg_segments]
     
+    norm_hists = normalize_histograms(color_hists)
+
+    graph_cut = do_graph_cut(fgbg_hists, fgbg_superpixels, norm_hists, neighbors)
+
+    segment_mask = pixels_for_segment_selection(superpixels, np.nonzero(graph_cut))
+
+    mask = np.uint8(segment_mask * 255)
+    #mask = cv2.cvtcolor(img_marking, cv2.color_bgr2gray) # dummy assignment for mask, change it to your result
+
+    # ======================================== #
+
     # read video file
     output_name = sys.argv[3] + "mask.png"
     cv2.imwrite(output_name, mask);

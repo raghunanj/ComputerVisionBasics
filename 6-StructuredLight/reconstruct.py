@@ -140,7 +140,7 @@ def write_3d_points(points_3d):
     output_name_color = sys.argv[1] + "output_color.xyz"
     with open(output_name_color,"w") as f:
         for i in range(points_3d.shape[0]):
-            f.write("%d %d %d %d %d %d\n"%(points_3d[i,0,0],points_3d[i,0,1],points_3d[i,0,2], Fcolor_points[i][0],Fcolor_points[i][1],Fcolor_points[i][2]))
+            f.write("%d %d %d %d %d %d\n"%(points_3d[i,0,0],points_3d[i,0,1],points_3d[i,0,2], Fcolor_points[i][2],Fcolor_points[i][1],Fcolor_points[i][0]))
 
     return points_3d #, camera_points, projector_points
     

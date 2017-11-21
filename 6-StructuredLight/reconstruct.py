@@ -23,6 +23,7 @@ def reconstruct_from_binary_patterns():
     scale_factor = 1.0
     ref_white = cv2.resize(cv2.imread("images/pattern000.jpg", cv2.IMREAD_GRAYSCALE) / 255.0, (0,0), fx=scale_factor,fy=scale_factor)
     ref_black = cv2.resize(cv2.imread("images/pattern001.jpg", cv2.IMREAD_GRAYSCALE) / 255.0, (0,0), fx=scale_factor,fy=scale_factor)
+    ref_color = cv2.resize(cv2.imread("images/pattern001.jpg", cv2.IMREAD_COLOR) , (0,0), fx=scale_factor,fy=scale_factor)
     ref_avg   = (ref_white + ref_black) / 2.0
     ref_on    = ref_avg + 0.05 # a threshold for ON pixels
     ref_off   = ref_avg - 0.05 # add a small buffer region
@@ -63,6 +64,7 @@ def reconstruct_from_binary_patterns():
     camera_points = []
     projector_points = []
     data = np.zeros((h,w,3), dtype=np.float)
+    color_points = []
 
     for x in range(w):
         for y in range(h):
@@ -75,11 +77,12 @@ def reconstruct_from_binary_patterns():
             if p_x >= 1279 or p_y >= 799: # filter
                 continue
 
-            data[y][x] = [0,p_y*255/799.0,p_x*255/1279.0]
+            data[y][x] = [0,p_y*255/800.0,p_x*255/1280.0]
             # due to differences in calibration and acquisition - divide the camera points by 2
             # Store the points in camera_points and projector_points
             projector_points.append([[p_y , p_x]])
             camera_points.append([[y/2.0,x/2.0]])
+            color_points.append(ref_color[y][x])
 
     cv2.imwrite("correspondance.jpg", data)
     # now that we have 2D-2D correspondances, we can triangulate 3D points!
@@ -95,9 +98,11 @@ def reconstruct_from_binary_patterns():
         projector_t = d['projector_t']
 
         # Computes the ideal point coordinates from the observed point coordinates
-    ideal_camPoints = cv2.undistortPoints(np.reshape(np.array(camera_points, dtype = np.float32),(len(camera_points),1,2)),camera_K,camera_d)
-    ideal_projPoints = cv2.undistortPoints(np.reshape(np.array(projector_points, dtype = np.float32),(len(projector_points),1,2)),projector_K,projector_d)
+    #ideal_camPoints = cv2.undistortPoints(np.reshape(np.array(camera_points, dtype = np.float32),(len(camera_points),1,2)),camera_K,camera_d)
+    #ideal_projPoints = cv2.undistortPoints(np.reshape(np.array(projector_points, dtype = np.float32),(len(projector_points),1,2)),projector_K,projector_d)
 
+    ideal_camPoints = cv2.undistortPoints(np.array(camera_points, dtype = np.float32),camera_K,camera_d)
+    ideal_projPoints = cv2.undistortPoints(np.array(projector_points, dtype = np.float32),projector_K,projector_d)
     #Projection matrix
     # identity matrix
     P1 = np.eye(3,4)
@@ -109,13 +114,19 @@ def reconstruct_from_binary_patterns():
 
     #   Filter on z component
     mask = (points_3d[:,:,2] > 200) & (points_3d[:,:,2] < 1400)
-
+    ideal_color_points = np.array(color_points)
+    
     FilterPoints_3d = []
+    #FiltercolorPoints_3d = []
     for i in range(len(mask)):
         if mask[i]== False:
             FilterPoints_3d.append(i)
+        if points_3d[i][0][2] > 200 and points_3d[i][0][2] < 1400:
+            Fcolor_points.append(ideal_color_points[i])
     points_3d = np.delete(points_3d, FilterPoints_3d, 0)
+    #print Fcolor_points
     return points_3d
+
 
 def write_3d_points(points_3d):
 
@@ -125,6 +136,11 @@ def write_3d_points(points_3d):
     with open(output_name,"w") as f:
         for p in points_3d:
             f.write("%d %d %d\n"%(p[0,0],p[0,1],p[0,2]))
+
+    output_name_color = sys.argv[1] + "output_color.xyz"
+    with open(output_name_color,"w") as f:
+        for i in range(points_3d.shape[0]):
+            f.write("%d %d %d %d %d %d\n"%(points_3d[i,0,0],points_3d[i,0,1],points_3d[i,0,2], Fcolor_points[i][0],Fcolor_points[i][1],Fcolor_points[i][2]))
 
     return points_3d #, camera_points, projector_points
     
@@ -136,6 +152,7 @@ if __name__ == '__main__':
         help_message()
         sys.exit()
 
+    Fcolor_points = []
     points_3d = reconstruct_from_binary_patterns()
     write_3d_points(points_3d)
 	
